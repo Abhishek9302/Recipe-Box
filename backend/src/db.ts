@@ -1,6 +1,6 @@
 import { Pool } from 'pg';
-import { readFileSync, existsSync } from 'fs';
-import { join } from 'path';
+import { readFileSync, existsSync, readdirSync } from 'fs';
+import { join, dirname } from 'path';
 
 const connectionString = process.env.DATABASE_URL;
 
@@ -12,7 +12,11 @@ const isAWS = connectionString?.includes('amazonaws') || connectionString?.inclu
 
 export const pool = new Pool({
   connectionString,
-  ssl: isAWS ? { rejectUnauthorized: false } : connectionString?.includes('sslmode=require') ? { rejectUnauthorized: false } : undefined,
+  ssl: isAWS
+    ? { rejectUnauthorized: false }
+    : connectionString?.includes('sslmode=require')
+      ? { rejectUnauthorized: false }
+      : undefined,
   max: 10,
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 5000,
@@ -24,7 +28,7 @@ pool.on('error', (err) => {
 
 export async function query<T = Record<string, unknown>>(
   text: string,
-  params?: unknown[]
+  params?: unknown[],
 ): Promise<T[]> {
   const client = await pool.connect();
   try {
@@ -37,25 +41,53 @@ export async function query<T = Record<string, unknown>>(
 
 export async function queryOne<T = Record<string, unknown>>(
   text: string,
-  params?: unknown[]
+  params?: unknown[],
 ): Promise<T | null> {
   const rows = await query<T>(text, params);
   return rows[0] ?? null;
 }
 
 /**
- * Locate the schema.sql file. It may live next to the built backend (when the
- * deploy pipeline syncs it into backend/database/) or at the repo root.
+ * Locate the schema.sql file. Railway/Nixpacks builds are inconsistent about
+ * which non-compiled directories survive into the runtime image, so we search a
+ * wide set of candidate locations and log every probe. The build context root
+ * is typically /app (rootDirectory=backend), with the compiled entrypoint at
+ * /app/dist/index.js (so __dirname === /app/dist).
  */
 function findSchemaFile(): string | null {
+  const cwd = process.cwd();
   const candidates = [
-    join(__dirname, '..', 'database', 'schema.sql'),        // backend/database/schema.sql (relative to dist/)
-    join(__dirname, '..', '..', 'database', 'schema.sql'),   // repo-root database/schema.sql
-    join(process.cwd(), 'database', 'schema.sql'),
-    join(process.cwd(), '..', 'database', 'schema.sql'),
+    join(__dirname, '..', 'database', 'schema.sql'), // /app/database/schema.sql
+    join(__dirname, 'database', 'schema.sql'), // /app/dist/database/schema.sql
+    join(__dirname, '..', '..', 'database', 'schema.sql'), // repo-root database/schema.sql
+    join(cwd, 'database', 'schema.sql'),
+    join(cwd, '..', 'database', 'schema.sql'),
+    join(cwd, 'backend', 'database', 'schema.sql'),
+    join(cwd, 'dist', 'database', 'schema.sql'),
+    '/app/database/schema.sql',
+    '/app/backend/database/schema.sql',
   ];
   for (const c of candidates) {
-    if (existsSync(c)) return c;
+    const ok = existsSync(c);
+    console.log(`[initSchema] probe ${ok ? 'FOUND' : 'miss '} ${c}`);
+    if (ok) return c;
+  }
+  // Last resort: shallow scan of common roots for a database/schema.sql.
+  for (const root of [cwd, join(__dirname, '..'), '/app']) {
+    try {
+      const dbDir = join(root, 'database');
+      if (existsSync(dbDir)) {
+        for (const f of readdirSync(dbDir)) {
+          if (f.endsWith('.sql')) {
+            const p = join(dbDir, f);
+            console.log(`[initSchema] scan FOUND ${p}`);
+            return p;
+          }
+        }
+      }
+    } catch {
+      /* ignore */
+    }
   }
   return null;
 }
@@ -67,19 +99,22 @@ function findSchemaFile(): string | null {
  */
 export async function initSchema(): Promise<void> {
   if (!connectionString) {
-    console.warn('Skipping schema init: DATABASE_URL not set.');
+    console.warn('[initSchema] skipped: DATABASE_URL not set.');
     return;
   }
+  console.log(`[initSchema] __dirname=${__dirname} cwd=${process.cwd()}`);
   const schemaPath = findSchemaFile();
   if (!schemaPath) {
-    console.warn('Skipping schema init: schema.sql not found in known locations.');
+    console.error(
+      '[initSchema] FATAL: schema.sql not found in any known location. Tables will not exist.',
+    );
     return;
   }
   const sql = readFileSync(schemaPath, 'utf8');
   const client = await pool.connect();
   try {
     await client.query(sql);
-    console.log(`Schema initialized from ${schemaPath}`);
+    console.log(`[initSchema] schema applied from ${schemaPath}`);
   } finally {
     client.release();
   }
