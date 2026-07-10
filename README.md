@@ -1,112 +1,213 @@
 # 🍳 Recipe Box
 
-A full-stack recipe management application built with Next.js, Express, and PostgreSQL.
+Recipe Box is a full-stack recipe manager with a Next.js frontend, an Express + TypeScript API, and a PostgreSQL database with seed data.
 
-## Architecture
+It ships with recipe browsing, search, category and difficulty filters, favorites, authentication, recipe CRUD, and a seeded demo account so the app can be exercised quickly in local development or on Railway.
 
+## What was built for ABH-10
+
+- Responsive recipe grid with modern card-based UI
+- Search by title/description
+- Category sidebar filters
+- Difficulty filters (`easy`, `medium`, `hard`)
+- Recipe detail view with ingredients and step-by-step instructions
+- Add, edit, and delete recipe flows
+- User signup/login with JWT-based auth
+- Favorites API + UI behavior for signed-in users
+- PostgreSQL schema with categories, recipes, ingredients, favorites, and demo seed data
+- Express health endpoint at `/health`
+
+## Tech stack
+
+### Frontend
+- Next.js 14
+- React 18
+- TypeScript
+- App Router
+
+### Backend
+- Node.js
+- Express
+- TypeScript
+- `pg` for PostgreSQL access
+- `jsonwebtoken` + `bcryptjs` for auth
+
+### Database
+- PostgreSQL
+- SQL schema + seed file in `database/schema.sql`
+
+## Repository structure
+
+```text
+.
+├── app/                    # Next.js app shell
+├── components/             # UI components (grid, detail, form, auth, toast)
+├── src/                    # frontend API client + shared frontend types
+├── backend/                # Express + TypeScript API service
+│   ├── src/index.ts
+│   ├── src/db.ts
+│   ├── src/middleware/
+│   └── src/routes/
+├── database/
+│   └── schema.sql          # PostgreSQL schema and seed data
+└── docs/
+    ├── ABH-10-architect-plan.md
+    └── IMPLEMENTATION_NOTES.md
 ```
-recipe-box/
-├── app/              # Next.js 14 App Router (frontend)
-├── components/       # React components
-├── src/              # Frontend utilities (api.ts, types.ts)
-├── backend/          # Express + TypeScript API
-│   └── src/
-│       ├── index.ts  # Server entry point
-│       ├── db.ts     # PostgreSQL connection
-│       ├── routes/   # API route handlers
-│       └── middleware/
-└── database/
-    └── schema.sql    # Database schema + seed data
-```
 
-## Features
+## Local setup
 
-- 📖 Browse recipes in a responsive grid
-- 🔍 Search recipes by title/description
-- 🏷️ Filter by category and difficulty
-- ❤️ Save favorites (requires account)
-- ➕ Add, edit, and delete recipes
-- 🔐 User authentication (JWT)
-- 🌱 Pre-seeded with 8 real recipes
+### 1) Install dependencies
 
-## Environment Variables
+Install the frontend/root dependencies:
 
-### Frontend (root `.env.local`)
-```
-NEXT_PUBLIC_API_URL=http://localhost:4000
-```
-
-### Backend (`backend/.env`)
-```
-DATABASE_URL=postgresql://user:password@localhost:5432/recipebox
-PORT=4000
-JWT_SECRET=your-super-secret-jwt-key-change-this
-FRONTEND_URL=http://localhost:3000
-```
-
-## Local Development
-
-### 1. Database Setup
 ```bash
-# Create PostgreSQL database
-createdb recipebox
-
-# Apply schema and seed data
-psql recipebox < database/schema.sql
+npm install
 ```
 
-### 2. Backend
+Install the backend dependencies:
+
 ```bash
 cd backend
 npm install
-npm run dev
-# API running at http://localhost:4000
+cd ..
 ```
 
-### 3. Frontend
+### 2) Create and seed PostgreSQL
+
+Create a local database:
+
 ```bash
-# From root directory
-npm install
-npm run dev
-# App running at http://localhost:3000
+createdb recipebox
 ```
 
-## API Endpoints
+Apply the schema and seed data:
 
-| Method | Path | Auth | Description |
-|--------|------|------|-------------|
-| GET | `/health` | No | Health check |
-| POST | `/auth/signup` | No | Create account |
-| POST | `/auth/login` | No | Login |
-| GET | `/api/recipes` | No | List recipes (search/filter) |
-| GET | `/api/recipes/:id` | No | Get recipe details |
-| POST | `/api/recipes` | Optional | Create recipe |
-| PUT | `/api/recipes/:id` | Yes | Update recipe |
-| DELETE | `/api/recipes/:id` | Yes | Delete recipe |
-| GET | `/api/categories` | No | List categories |
-| POST | `/api/categories` | Yes | Create category |
-| DELETE | `/api/categories/:id` | Yes | Delete category |
-| GET | `/api/favorites` | Yes | Get user favorites |
-| POST | `/api/favorites` | Yes | Add to favorites |
-| DELETE | `/api/favorites/:id` | Yes | Remove from favorites |
+```bash
+psql recipebox < database/schema.sql
+```
 
-## Demo Account
+### 3) Configure environment variables
 
-Email: `demo@recipebox.app`  
-Password: `demo1234`
+#### Frontend (`.env.local` at repo root)
 
-## Railway Deployment
+```env
+NEXT_PUBLIC_API_URL=http://localhost:4000
+```
 
-1. Create a Railway project
-2. Add a PostgreSQL plugin
-3. Deploy backend service:
-   - Root: `backend/`
-   - Build: `npm run build`
-   - Start: `npm start`
-   - Set `DATABASE_URL` (from Railway PostgreSQL), `JWT_SECRET`, `PORT`
-4. Deploy frontend service:
-   - Root: `/`
-   - Build: `npm run build`
-   - Start: `npm start`
-   - Set `NEXT_PUBLIC_API_URL` to backend URL
-5. Run `database/schema.sql` via Railway's PostgreSQL console
+#### Backend (`backend/.env`)
+
+```env
+DATABASE_URL=postgresql://localhost:5432/recipebox
+PORT=4000
+JWT_SECRET=change-this-in-real-environments
+FRONTEND_URL=http://localhost:3000
+```
+
+> `DATABASE_URL` should be updated to match your local PostgreSQL credentials.
+
+## Running the app
+
+### Run the backend
+
+```bash
+cd backend
+npm run dev
+```
+
+Backend URLs:
+- API: `http://localhost:4000`
+- Health: `http://localhost:4000/health`
+- Recipes: `http://localhost:4000/api/recipes`
+
+### Run the frontend
+
+In a separate shell from the repo root:
+
+```bash
+npm run dev
+```
+
+Frontend URL:
+- App: `http://localhost:3000`
+
+## Demo account
+
+Use the seeded demo account:
+
+- Email: `demo@recipebox.app`
+- Password: `demo1234`
+
+## API overview
+
+### Health
+- `GET /health`
+
+### Auth
+- `POST /auth/signup`
+- `POST /auth/login`
+
+### Categories
+- `GET /api/categories`
+- `POST /api/categories`
+- `DELETE /api/categories/:id`
+
+### Recipes
+- `GET /api/recipes`
+- `GET /api/recipes/:id`
+- `POST /api/recipes`
+- `PUT /api/recipes/:id`
+- `DELETE /api/recipes/:id`
+
+Supported recipe list query params:
+- `q`
+- `category`
+- `difficulty`
+- `page`
+- `limit`
+
+### Favorites
+- `GET /api/favorites`
+- `POST /api/favorites`
+- `DELETE /api/favorites/:recipeId`
+
+## Deployment notes
+
+This repo is organized as a two-service layout:
+- frontend at the repo root
+- backend in `backend/`
+
+For Railway-style deployment:
+
+### Backend service
+- Root directory: `backend/`
+- Install: `npm install`
+- Build: `npm run build`
+- Start: `npm start`
+- Required env:
+  - `DATABASE_URL`
+  - `JWT_SECRET`
+  - `PORT`
+  - `FRONTEND_URL`
+
+### Frontend service
+- Root directory: `/`
+- Install: `npm install`
+- Build: `npm run build`
+- Start: `npm start`
+- Required env:
+  - `NEXT_PUBLIC_API_URL` pointing at the deployed backend base URL
+
+### Database
+- Provision PostgreSQL
+- Run `database/schema.sql` against the deployed database to create tables and seed initial data
+
+## Notes for reviewers / handoff
+
+- The frontend stores auth state in local storage (`rb_user`, `rb_token`)
+- Favorites are cached per-user in local storage and refreshed from the API
+- Recipe create allows optional auth; edit/delete/favorites require auth
+- Ingredients are stored in a dedicated `ingredients` table
+- Instructions are stored as JSON text in the `recipes.instructions` column and parsed by the API
+
+Additional architecture details are documented in `docs/IMPLEMENTATION_NOTES.md`.
