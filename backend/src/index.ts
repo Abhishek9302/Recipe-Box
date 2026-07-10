@@ -1,7 +1,7 @@
 import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
-import { pool } from './db';
+import { pool, initSchema, isDbUp } from './db';
 import authRoutes from './routes/auth';
 import categoryRoutes from './routes/categories';
 import recipeRoutes from './routes/recipes';
@@ -18,9 +18,11 @@ app.use(cors({
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 
-// Health check
-app.get('/health', (_req, res) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+// Health check — always 200 so the platform marks the service healthy;
+// reports DB connectivity separately.
+app.get('/health', async (_req, res) => {
+  const dbUp = await isDbUp();
+  res.json({ status: 'ok', db: dbUp ? 'up' : 'down', timestamp: new Date().toISOString() });
 });
 
 // Routes
@@ -49,6 +51,14 @@ async function start() {
   } catch (err) {
     console.error('❌ Database connection failed:', err);
     console.error('Make sure DATABASE_URL is set and the database is running.');
+  }
+
+  // Initialize schema (idempotent). Without this the tables never exist and
+  // every /api/* query returns 500.
+  try {
+    await initSchema();
+  } catch (err) {
+    console.error('❌ Schema initialization failed:', err);
   }
 
   app.listen(PORT, '0.0.0.0', () => {
